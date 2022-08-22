@@ -13,10 +13,6 @@ int WINAPI wWinMain(
     std::wstring cwd = dir;
     GameApp app(hInstance, L"DX", 400, 400);
     app.Init();
-    app.setPixelShaderSrc( L"HLSL\\cube_ps.hlsl");
-    app.setVertexShaderSrc( L"HLSL\\cube_vs.hlsl");
-    app.InitEffect();
-    app.InitResource();
     app.Run();
 
     return 0;
