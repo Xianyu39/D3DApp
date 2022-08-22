@@ -10,6 +10,7 @@
 
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dxguid.lib")
+#pragma comment(lib, "D3DCompiler.lib")
 
 namespace {
     D3DApp* pD3dApp = nullptr;
@@ -549,7 +550,7 @@ HRESULT D3DApp::CreateShaderFromFile(
     return hr;
 }
 
-HRESULT D3DApp::GenVertexShader(const std::wstring& srcPath, const std::wstring& outputPath, const std::vector<D3D11_INPUT_ELEMENT_DESC>& inputlayout) {
+HRESULT D3DApp::GenVertexShader(const std::wstring& srcPath, const std::wstring& outputPath, const std::vector<D3D11_INPUT_ELEMENT_DESC>& inputlayout, ID3D11VertexShader** ppShader) {
     HRESULT hr = S_OK;
     ComPtr<ID3DBlob> pB;
     ComPtr<ID3D11VertexShader> pVertexShader;
@@ -558,6 +559,9 @@ HRESULT D3DApp::GenVertexShader(const std::wstring& srcPath, const std::wstring&
     hr = pDevice->CreateVertexShader(pB->GetBufferPointer(), pB->GetBufferSize(), nullptr, pVertexShader.ReleaseAndGetAddressOf());
     pImmediateDeviceContext->VSSetShader(pVertexShader.Get(), nullptr, 0);
     if (FAILED(hr)) { return hr; }
+    if (ppShader) {
+        *ppShader = pVertexShader.Get();
+    }
 
     //  ‰»Î≤ºæ÷
     ComPtr<ID3D11InputLayout> pInputLayout;
@@ -565,7 +569,7 @@ HRESULT D3DApp::GenVertexShader(const std::wstring& srcPath, const std::wstring&
     pImmediateDeviceContext->IASetInputLayout(pInputLayout.Get());
     return hr;
 }
-HRESULT D3DApp::GenPixelShader(const std::wstring& srcPath, const std::wstring& outputPath) {
+HRESULT D3DApp::GenPixelShader(const std::wstring& srcPath, const std::wstring& outputPath, ID3D11PixelShader** ppShader) {
     HRESULT hr = S_OK;
     ComPtr<ID3DBlob> pB;
     ComPtr<ID3D11PixelShader> pPixelShader;
@@ -573,6 +577,9 @@ HRESULT D3DApp::GenPixelShader(const std::wstring& srcPath, const std::wstring& 
     if (FAILED(hr)) { return hr; }
     hr = pDevice->CreatePixelShader(reinterpret_cast<void*>(pB->GetBufferPointer()), pB->GetBufferSize(), nullptr, pPixelShader.ReleaseAndGetAddressOf());
     pImmediateDeviceContext->PSSetShader(pPixelShader.Get(), nullptr, 0);
+    if (ppShader) {
+        *ppShader = pPixelShader.Get();
+    }
     return hr;
 }
 

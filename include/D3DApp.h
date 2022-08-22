@@ -74,14 +74,17 @@ public:
      * @brief 创建顶点着色器并且将其设置到渲染管线
      * @param srcPath 源文件全名
      * @param outputPath 如果需要输出编译好的二进制文件的话设置的二进制文件全名
-     * @param inputLayout 顶点输入格式数组*/
-    virtual HRESULT GenVertexShader(const std::wstring& srcPath, const std::wstring& outputPath, const std::vector<D3D11_INPUT_ELEMENT_DESC>& inputlayout);
+     * @param inputLayout 顶点输入格式数组
+     * @param ppShader 可选，输出shader
+     * */
+    virtual HRESULT GenVertexShader(const std::wstring& srcPath, const std::wstring& outputPath, const std::vector<D3D11_INPUT_ELEMENT_DESC>& inputlayout, ID3D11VertexShader** ppShader = nullptr);
     /**
      * @brief 创建像素着色器并且将其设置到渲染管线
      * @param srcPath 源文件全名
      * @param outputPath 如果需要输出编译好的二进制文件的话设置的二进制文件全名
+     * @param ppShader 可选，输出shader
      */
-    virtual HRESULT GenPixelShader(const std::wstring& srcPath, const std::wstring& outputPath);
+    virtual HRESULT GenPixelShader(const std::wstring& srcPath, const std::wstring& outputPath, ID3D11PixelShader** ppShader = nullptr);
     /**
      * @brief 更新dynamic的常量缓冲区的值
      * @param pBuffer 要更新的缓冲区指针
