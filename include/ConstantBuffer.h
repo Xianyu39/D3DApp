@@ -58,18 +58,24 @@ struct Material
     float4 reflect;
 };
 
-
-
-struct VConstantBuffer
+struct CBChangesEveryDrawing
 {
-    XMFLOAT4X4 world;
-    XMFLOAT4X4 view;
-    XMFLOAT4X4 proj;
-    XMFLOAT4X4 wordInv;
-    XMFLOAT4X4 texTrans;
+    DirectX::XMMATRIX world;
+    DirectX::XMMATRIX worldInvTranspose;
 };
 
-struct PSConstantBuffer
+struct CBChangesEveryFrame
+{
+    DirectX::XMMATRIX view;
+    DirectX::XMFLOAT4 eyePos;
+};
+
+struct CBChangesOnResize
+{
+    DirectX::XMMATRIX proj;
+};
+
+struct CBChangesRarely
 {
     DirectionalLight dirLight[10];
     PointLight pointLight[10];
@@ -78,11 +84,7 @@ struct PSConstantBuffer
     int numDirLight;
     int numPointLight;
     int numSpotLight;
-    float pad1;
-
-    float4 eyePos;
-    float pad2;
-    char pad4[12];
+    float pad;		// 打包保证16字节对齐
 };
 
 #endif // CONSTANRBUFFER_H
