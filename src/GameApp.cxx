@@ -1,123 +1,118 @@
 #include "GameApp.h"
-#include "d3dcompiler.h"
-#include "DXTrace.h"
-#include "Vertex.h"
-#include "DirectXMath.h"
-#include "vector"
-#include "Geometry.h"
 #include "DDSTextureLoader11.h"
-
-#pragma comment(lib, "D3DCompiler.lib")
-
-inline DirectX::XMMATRIX XM_CALLCONV InverseTranspose(DirectX::FXMMATRIX M)
-{
-    using namespace DirectX;
-
-    // 世界矩阵的逆的转置仅针对法向量，我们也不需要世界矩阵的平移分量
-    // 而且不去掉的话，后续再乘上观察矩阵之类的就会产生错误的变换结果
-    XMMATRIX A = M;
-    A.r[3] = g_XMIdentityR3;
-
-    return XMMatrixTranspose(XMMatrixInverse(nullptr, A));
-}
+#include "FirstPersonCamera.h"
+#include <DirectXColors.h>
 
 void GameApp::UpdateScene(float dt) {
-    using namespace DirectX;
-    static float phi = 0.f, theta = 0.f, a = 0.f;
-    XMMATRIX W = XMMatrixRotationX(phi) * XMMatrixRotationY(theta);
-    XMStoreFloat4x4(&vcbuffer.world, XMMatrixTranspose(W));
-    XMStoreFloat4x4(&vcbuffer.texTrans, XMMatrixRotationZ(a));
-    XMStoreFloat4x4(&vcbuffer.wordInv, XMMatrixTranspose(InverseTranspose(W)));
-    HR(UpdateConstantBuffer(pVConstantBuffer.Get(), &vcbuffer, sizeof(vcbuffer)));
-    
-    phi += 0.0001f;
-    theta += 0.00015f;
-    a += 0.001f;
+    cbFrame.eyePos = XMFLOAT4(0.f, 0.f, 0.f, 1.f);
+    cbFrame.view = XMMatrixTranspose(pCamera->GetWorldToLocal());
+    UpdateConstantBuffer(pConstantBuffers[1], &cbFrame, sizeof(CBChangesEveryFrame));
 }
-
 void GameApp::DrawScene() {
-    FLOAT color[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
-    pImmediateDeviceContext->ClearRenderTargetView(pRenderTargetView.Get(), color);
-    pImmediateDeviceContext->ClearDepthStencilView(
-        pDepthStencilView.Get(),
-        D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL,
-        1.f,
-        0
-    );
-    pImmediateDeviceContext->DrawIndexed(indexNum, 0, 0);
-    pSwapChain->Present(0, 0);
-}
-
-bool GameApp::Init() {
-    return D3DApp::Init();
-}
-
-bool GameApp::InitEffect() {
-    std::vector<D3D11_INPUT_ELEMENT_DESC> layout(VertexPosNormalTex::inputLayout, VertexPosNormalTex::inputLayout + ARRAYSIZE(VertexPosNormalTex::inputLayout));
-    HR(GenVertexShader(L"HLSL\\vs.hlsl", L"", layout));
-    HR(GenPixelShader(L"HLSL\\ps.hlsl", L""));
-    return true;
-}
-
-bool GameApp::InitResource() {
-    Geometry::MeshData<VertexPosNormalTex, UINT> mesh = Geometry::CreateBox<VertexPosNormalTex, UINT>();
-    HR(AddVertexBuffer<VertexPosNormalTex>(mesh.vertexVec));
-    SetVertexBuffers();
-    HR(SetIndexBuffer<UINT>(mesh.indexVec));
-    indexNum = (UINT)mesh.indexVec.size();
-
-    HR(GetConstantBuffer(pVConstantBuffer.GetAddressOf(), sizeof(VConstantBuffer)));
-    pImmediateDeviceContext->VSSetConstantBuffers(0, 1, pVConstantBuffer.GetAddressOf());
-    HR(GetConstantBuffer(pPConstantBuffer.GetAddressOf(), sizeof(PSConstantBuffer)));
-    pImmediateDeviceContext->PSSetConstantBuffers(1, 1, pPConstantBuffer.GetAddressOf());
-
-    DirectX::XMStoreFloat4x4(&vcbuffer.world, DirectX::XMMatrixIdentity());
-    DirectX::XMStoreFloat4x4(&vcbuffer.view, DirectX::XMMatrixTranspose(
-        DirectX::XMMatrixLookAtLH(
-            XMVectorSet(0.0f, 0.0f, -5.0f, 0.0f),
-            XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f),
-            XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f)
-        )
-    ));
-    DirectX::XMStoreFloat4x4(&vcbuffer.proj, DirectX::XMMatrixTranspose(DirectX::XMMatrixPerspectiveFovLH(XM_PIDIV2, AspectRatio(), 1.0f, 1000.0f)));
-
-    // 初始化用于PS的常量缓冲区的值
-    // 这里只使用一盏点光来演示
-    pcbuffer.pointLight[0].position = XMFLOAT3(0.0f, 0.0f, -10.0f);
-    pcbuffer.pointLight[0].ambient = XMFLOAT4(0.3f, 0.3f, 0.3f, 1.0f);
-    pcbuffer.pointLight[0].diffuse = XMFLOAT4(0.7f, 0.7f, 0.7f, 1.0f);
-    pcbuffer.pointLight[0].specular = XMFLOAT4(0.5f, 0.5f, 0.5f, 1.0f);
-    pcbuffer.pointLight[0].att = XMFLOAT3(0.0f, 0.1f, 0.0f);
-    pcbuffer.pointLight[0].range = 25.0f;
-    pcbuffer.numDirLight = 0;
-    pcbuffer.numPointLight = 1;
-    pcbuffer.numSpotLight = 0;
-    pcbuffer.material.ambient = XMFLOAT4(0.5f, 0.5f, 0.5f, 1.0f);
-    pcbuffer.material.diffuse = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-    pcbuffer.material.specular = XMFLOAT4(0.1f, 0.1f, 0.1f, 5.0f);
-    pcbuffer.eyePos = XMFLOAT4(0.0f, 0.0f, -5.0f, 0.0f);
-    UpdateConstantBuffer(pPConstantBuffer, &pcbuffer, sizeof(pcbuffer));
+    cbDrawing.world = XMMatrixTranspose(pCamera->GetLocalToWorld());
+    cbDrawing.worldInvTranspose = XMMatrixTranspose(XMMatrixInverse(nullptr, XMMatrixTranspose(pCamera->GetLocalToWorld())));
+    UpdateConstantBuffer(pConstantBuffers[0], &cbDrawing, sizeof(cbDrawing));
+    pImmediateDeviceContext->ClearRenderTargetView(pRenderTargetView.Get(), reinterpret_cast<const float*>(&DirectX::Colors::Black));
+    pImmediateDeviceContext->ClearDepthStencilView(pDepthStencilView.Get(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
+    floor.Draw(pImmediateDeviceContext.Get());
+    woodBox.Draw(pImmediateDeviceContext.Get());
+    for (auto &i : walls) {
+        i.Draw(pImmediateDeviceContext.Get());
+    }
     
-    pImmediateDeviceContext->IASetPrimitiveTopology(
-        D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST
-    );
-    // 纹理
-    PSSetDDSTexture(L".\\Texture\\flare.dds", 0);
-    PSSetDDSTexture(L".\\Texture\\flarealpha.dds", 1);
+    HR(pSwapChain->Present(0, 0));
+}
+bool GameApp::InitEffect() {
+    std::vector<D3D11_INPUT_ELEMENT_DESC> layout(VertexPosNormalTex::inputLayout, VertexPosNormalTex::inputLayout + 3);
+    GenVertexShader(L"./HLSL/vs.hlsl", L"./build/vs.cso", layout, pVertexShader.GetAddressOf());
+    GenPixelShader(L"./HLSL/ps.hlsl", L"./build/ps.cso", pPixelShader.GetAddressOf());
+    return true;
+}
+bool GameApp::InitResource() {
+    // 创建常量缓冲区
+    HR(GetConstantBuffer(pConstantBuffers[0].GetAddressOf(), sizeof(CBChangesEveryDrawing)));
+    HR(GetConstantBuffer(pConstantBuffers[1].GetAddressOf(), sizeof(CBChangesEveryFrame)));
+    HR(GetConstantBuffer(pConstantBuffers[2].GetAddressOf(), sizeof(CBChangesOnResize)));
+    HR(GetConstantBuffer(pConstantBuffers[3].GetAddressOf(), sizeof(CBChangesRarely)));
 
-    // 纹理采样器
-    D3D11_SAMPLER_DESC sdc;
-    ZeroMemory(&sdc, sizeof(sdc));
-    sdc.Filter = D3D11_FILTER_MIN_LINEAR_MAG_MIP_POINT;
-    D3D11_TEXTURE_ADDRESS_MODE mode = D3D11_TEXTURE_ADDRESS_BORDER;
-    sdc.AddressU = sdc.AddressV = sdc.AddressW = mode;
-    sdc.BorderColor[3] = 0.0f;
-    sdc.ComparisonFunc = D3D11_COMPARISON_NEVER;
-    sdc.MinLOD = 0;
-    sdc.MaxLOD = D3D11_FLOAT32_MAX;
-    ComPtr<ID3D11SamplerState> pSamplerState;
-    HR(pDevice->CreateSamplerState(&sdc, pSamplerState.GetAddressOf()));
+    // 纹理
+    ComPtr<ID3D11ShaderResourceView> texture;
+    // 木箱
+    HR(CreateDDSTextureFromFile(pDevice.Get(), L"./Texture/WoodCrate.dds", nullptr, texture.GetAddressOf()));
+    woodBox.SetTexture(texture.Get());
+    woodBox.SetBuffer<VertexPosNormalTex, DWORD>(pDevice.Get(), Geometry::CreateBox());
+    // 地板
+    HR(CreateDDSTextureFromFile(pDevice.Get(), L"./Texture/floor.dds", nullptr, texture.ReleaseAndGetAddressOf()));
+    floor.SetTexture(texture.Get());
+    floor.SetBuffer<VertexPosNormalTex, DWORD>(pDevice.Get(), Geometry::CreatePlane(XMFLOAT2(20.0f, 20.0f), XMFLOAT2(5.0f, 5.0f)));
+    floor.GetTransform().SetPosition(0.0f, -1.0f, 0.0f);
+    // 围墙
+    HR(CreateDDSTextureFromFile(pDevice.Get(), L"./Texture/brick.dds", nullptr, texture.ReleaseAndGetAddressOf()));
+    for (int i = 0; i < 4; ++i) {
+        walls[i].SetBuffer(pDevice.Get(), Geometry::CreatePlane(XMFLOAT2(20.0f, 8.0f), XMFLOAT2(5.0f, 1.5f)));
+        walls[i].SetTexture(texture.Get());
+        Transform& t = walls[i].GetTransform();
+        t.SetRotation(-XM_PIDIV2, XM_PIDIV2 * i, 0.0f);
+        t.SetPosition(i % 2 ? -10.0f * (i - 2) : 0.0f, 3.0f, i % 2 == 0 ? -10.0f * (i - 1) : 0.0f);
+    }
+    // 采样器
+    D3D11_SAMPLER_DESC dsc;
+    ZeroMemory(&dsc, sizeof(dsc));
+    dsc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+    dsc.AddressU = dsc.AddressV = dsc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+    dsc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+    dsc.MinLOD = 0;
+    dsc.MaxLOD = D3D11_FLOAT32_MAX;
+    HR(pDevice->CreateSamplerState(&dsc, pSamplerState.GetAddressOf()));
+
+    // 摄像机
+    auto c = std::make_shared<FirstPersonCamera>();
+    c->SetFrustum(XM_PI / 3, AspectRatio(), 0.5f, 1000.f);
+    c->SetViewPort(0.f, 0.f, (float)clientWidth, (float)clientHeight);
+    c->LookAt({ 10.f,5.f,0.f }, { 0.f, 0.f, 0.f }, { 0.f,1.f,0.f });
+    pCamera = c;
+    // 常量缓冲区
+    cbResize.proj = XMMatrixTranspose(pCamera->GetProjXM());
+    // 初始化不会变化的值
+    // 环境光
+    cbRare.dirLight[0].ambient = XMFLOAT4(0.5f, 0.5f, 0.5f, 1.0f);
+    cbRare.dirLight[0].diffuse = XMFLOAT4(0.8f, 0.8f, 0.8f, 1.0f);
+    cbRare.dirLight[0].specular = XMFLOAT4(0.5f, 0.5f, 0.5f, 1.0f);
+    cbRare.dirLight[0].direction = XMFLOAT3(0.0f, -1.0f, 0.0f);
+    // 灯光
+    cbRare.pointLight[0].position = XMFLOAT3(0.0f, 10.0f, 0.0f);
+    cbRare.pointLight[0].ambient = XMFLOAT4(0.5f, 0.5f, 0.5f, 1.0f);
+    cbRare.pointLight[0].diffuse = XMFLOAT4(0.8f, 0.8f, 0.8f, 1.0f);
+    cbRare.pointLight[0].specular = XMFLOAT4(0.5f, 0.5f, 0.5f, 1.0f);
+    cbRare.pointLight[0].att = XMFLOAT3(0.0f, 0.1f, 0.0f);
+    cbRare.pointLight[0].range = 25.0f;
+    cbRare.numDirLight = 1;
+    cbRare.numPointLight = 1;
+    cbRare.numSpotLight = 0;
+    // 初始化材质
+    cbRare.material.ambient = XMFLOAT4(0.5f, 0.5f, 0.5f, 1.0f);
+    cbRare.material.diffuse = XMFLOAT4(0.6f, 0.6f, 0.6f, 1.0f);
+    cbRare.material.specular = XMFLOAT4(0.1f, 0.1f, 0.1f, 50.0f);
+
+    UpdateConstantBuffer(pConstantBuffers[3], &cbRare, sizeof(cbRare));
+    UpdateConstantBuffer(pConstantBuffers[2], &cbResize, sizeof(cbResize));
+
+    // 渲染管线
+    pImmediateDeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    
+    pImmediateDeviceContext->VSSetConstantBuffers(0, 1, pConstantBuffers[0].GetAddressOf());
+    pImmediateDeviceContext->VSSetConstantBuffers(1, 1, pConstantBuffers[1].GetAddressOf());
+    pImmediateDeviceContext->VSSetConstantBuffers(2, 1, pConstantBuffers[2].GetAddressOf());
+    
     pImmediateDeviceContext->PSSetSamplers(0, 1, pSamplerState.GetAddressOf());
+    pImmediateDeviceContext->PSSetConstantBuffers(1, 1, pConstantBuffers[1].GetAddressOf());
+    pImmediateDeviceContext->PSSetConstantBuffers(3, 1, pConstantBuffers[3].GetAddressOf());
 
     return true;
+}
+bool GameApp::Init() {
+    return
+        D3DApp::Init() &&
+        InitEffect() &&
+        InitResource();
 }
